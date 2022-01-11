@@ -246,11 +246,6 @@ class Trainer(BaseTrainer):
             else:
                 x_fake, x_swap = generator(x_real, pose_real)
 
-        # x_swap.requires_grad_()
-        # d_swap = discriminator(x_swap)
-        # d_loss_swap = compute_bce(d_swap, 0)
-        # loss_d_full += d_loss_swap
-
 
         x_fake.requires_grad_()
         d_fake = discriminator(x_fake)
@@ -266,23 +261,6 @@ class Trainer(BaseTrainer):
         return (
             d_loss.item(), reg.item(), d_loss_real.item(), d_loss_fake.item())
 
-    # def record_uvs(self, uv, path, it):
-    #     out_path = os.path.join(path, 'uv.txt')
-    #     name_dict = {0: 'pred', 1:'swap', 2:'rand'}
-    #     if not os.path.exists(out_path):
-    #         f = open(out_path, 'w')
-    #     else:
-    #         f = open(out_path, 'a')
-
-    #     for i in range(len(uv)):        # len: 3
-    #         line = list(map(lambda x: round(x, 3), uv[i].flatten().detach().cpu().numpy().tolist()))
-    #         out = []
-    #         for idx in range(0, len(line)//2):
-    #             out.append(tuple((line[2*idx], line[2*idx+1])))
-    #         txt_line = f'{it}th {name_dict[i]}-uv : {out}\n'
-    #         f.write(txt_line)
-    #     f.write('\n')
-    #     f.close()
 
 
     def record_uvs(self, uv, path, it):

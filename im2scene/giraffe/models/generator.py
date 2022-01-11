@@ -139,19 +139,11 @@ class Generator(nn.Module):
 
         rgb = self.neural_renderer(rgb_v)
 
-        # swap_rgb_v = self.volume_render_image(
-        #     latent_codes, swap_camera_matrices, transformations, 
-        #     mode=mode, it=it, not_render_background=not_render_background,
-        #     only_render_background=only_render_background)
-        # swap_rgb = self.neural_renderer(swap_rgb_v)
-
-
-
-        shape_swap_v = self.volume_render_image(
-            latent_codes, camera_matrices, transformations, 
+        swap_rgb_v = self.volume_render_image(
+            latent_codes, swap_camera_matrices, transformations, 
             mode=mode, it=it, not_render_background=not_render_background,
             only_render_background=only_render_background)
-        shape_swap_rgb = self.neural_renderer(shape_swap_v)
+        swap_rgb = self.neural_renderer(swap_rgb_v)
 
 
         rand_rgb_v = self.volume_render_image(
