@@ -548,3 +548,87 @@ class Generator(nn.Module):
             return feat_map, acc_map
         else:
             return feat_map
+
+
+    def evaluate(self, img, batch_size=2, latent_codes=None, camera_matrices=None,
+                transformations=None, bg_rotation=None, mode="val", it=0,
+                not_render_background=False,
+                only_render_background=False):
+        # edit mira start 
+        # 랜덤하게 두개만 뽑자     
+        img1 = img.to(self.device)
+
+        batch_size = img1.shape[0]
+        # shape, appearance = torch.randn(batch_size, self.z_dim).to(self.device), torch.randn(batch_size, self.z_dim).to(self.device)
+
+        scale, trans, rot, shape, appearance = self.resnet(img1)
+        latent_codes = shape, appearance
+        shape_swap_latent = shape.flip(0), appearance
+        app_swap_latent = shape, appearance.flip(0  )
+
+        pred_cam = scale, trans, rot
+
+        homo_ = torch.tensor([0, 0, 0, 1]).reshape(1, -1, 4).repeat(len(rot), 1, 1).to(self.device)
+        camera_mat = torch.cat([torch.cat([rot, trans.unsqueeze(-1)], dim=-1), homo_], dim=1)
+        scale_mat = torch.eye(4).unsqueeze(0).repeat(len(rot), 1, 1).to(self.device)
+        scale_mat[:, :3, :3] *= scale.reshape(-1, 1, 1)
+        camera_mat @= scale_mat
+
+        if camera_matrices is None: 
+            random_u = torch.rand(batch_size)*(self.range_u[1] - self.range_u[0]) + self.range_u[0]
+            random_v = torch.rand(batch_size)*(self.range_v[1] - self.range_v[0]) + self.range_v[0]
+            # 정해진 batch size만큼 나옴 
+
+            rand_camera_matrices = self.get_random_camera(random_u, random_v, batch_size)   # 사잇값이 가지런하게 나옴 
+            intrinsic_mat = rand_camera_matrices[0]
+            # u, v = uv[:, 0], uv[:, 1]
+            # v = v/2
+            random_extrinsics = rand_camera_matrices[1]
+            camera_matrices = tuple((intrinsic_mat, camera_mat))    # 앞부분 mat 
+            # new_cam_matrices = tuple((intrinsic_mat, pose2))   # 뒷부분 mat 
+            swap_camera_matrices = tuple((intrinsic_mat, camera_mat.flip(0)))    # 앞부분 mat 
+
+        else:
+            print('oh noooo')
+            pdb.set_trace()
+
+
+        if transformations is None:
+            transformations = self.get_random_transformations(batch_size)     
+
+        rgb_v = self.volume_render_image(
+            latent_codes, camera_matrices, transformations, 
+            mode=mode, it=it, not_render_background=not_render_background,
+            only_render_background=only_render_background)
+
+        rgb = self.neural_renderer(rgb_v)
+
+
+        shape_swap_rgb_v = self.volume_render_image(
+            shape_swap_latent, camera_matrices, transformations, 
+            mode=mode, it=it, not_render_background=not_render_background,
+            only_render_background=only_render_background)
+
+        shape_swap_rgb = self.neural_renderer(shape_swap_rgb_v)
+
+        appearance_swap_rgb_v = self.volume_render_image(
+            app_swap_latent, camera_matrices, transformations, 
+            mode=mode, it=it, not_render_background=not_render_background,
+            only_render_background=only_render_background)
+
+        appearance_swap_rgb = self.neural_renderer(appearance_swap_rgb_v)
+
+
+        pose_swap_rgb_v = self.volume_render_image(
+            latent_codes, swap_camera_matrices, transformations, 
+            mode=mode, it=it, not_render_background=not_render_background,
+            only_render_background=only_render_background)
+        pose_swap_rgb = self.neural_renderer(pose_swap_rgb_v)
+
+
+        return {
+            "recon": rgb,
+            "shape": shape_swap_rgb,
+            "appearance": appearance_swap_rgb,
+            "pose": pose_swap_rgb
+        }

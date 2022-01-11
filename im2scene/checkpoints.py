@@ -58,6 +58,7 @@ class CheckpointIO(object):
         Args:
             filename (str): name of saved module dictionary
         '''
+
         if is_url(filename):
             return self.load_url(filename)
         else:
@@ -73,6 +74,8 @@ class CheckpointIO(object):
         if not os.path.isabs(filename):
             filename = os.path.join(self.checkpoint_dir, filename)
 
+        print(filename)
+        print(os.getcwd())
         if os.path.exists(filename):
             print(filename)
             print('=> Loading checkpoint from local file...')

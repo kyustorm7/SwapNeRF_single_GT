@@ -50,7 +50,7 @@ training:
   range_v: [0.0, 0.5]       # 오케이 랜덤도 잘 들어가고 있군.. 
   recon_weight:  100.
 test:
-  model_file: model_best.pt
+  model_file: carla-NeRF/model_1000000.pt
   n_images: 20000
   take_generator_average: True
 rendering:

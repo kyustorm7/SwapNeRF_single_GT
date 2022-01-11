@@ -25,6 +25,7 @@ class Renderer(object):
             gen = self.model.generator
         gen.eval()
         self.generator = gen
+        self.device = device
 
         # sample temperature; only used for visualiations
         self.sample_tmp = 0.65
@@ -33,43 +34,19 @@ class Renderer(object):
         torch.manual_seed(0)
         np.random.seed(0)
 
-    def render_full_visualization(self, img_out_path,
-                                  render_program=['object_rotation']):
-        for rp in render_program:
-            if rp == 'object_rotation':
-                self.set_random_seed()
-                self.render_object_rotation(img_out_path)
-            if rp == 'object_translation_horizontal':
-                self.set_random_seed()
-                self.render_object_translation_horizontal(img_out_path)
-            if rp == 'object_translation_vertical':
-                self.set_random_seed()
-                self.render_object_translation_depth(img_out_path)
-            if rp == 'interpolate_app':
-                self.set_random_seed()
-                self.render_interpolation(img_out_path)
-            if rp == 'interpolate_app_bg':
-                self.set_random_seed()
-                self.render_interpolation_bg(img_out_path)
-            if rp == 'interpolate_shape':
-                self.set_random_seed()
-                self.render_interpolation(img_out_path, mode='shape')
-            if rp == 'object_translation_circle':
-                self.set_random_seed()
-                self.render_object_translation_circle(img_out_path)
-            if rp == 'render_camera_elevation':
-                self.set_random_seed()
-                self.render_camera_elevation(img_out_path)
-            if rp == 'render_add_cars':
-                self.set_random_seed()
-                self.render_add_objects_cars5(img_out_path)
-            if rp == 'render_add_clevr10':
-                self.set_random_seed()
-                self.render_add_objects_clevr10(img_out_path)
-            if rp == 'render_add_clevr6':
-                self.set_random_seed()
-                self.render_add_objects_clevr6(img_out_path)
+    def render_full_visualization(self, images):
+        with torch.no_grad():
+            x_real = images.to(self.device)
+            generated_images = self.generator.evaluate(x_real, batch_size=2, mode="val")
+            return {
+                "recon": generated_images["recon"].clamp_(0., 1.), 
+                "shape": generated_images["shape"].clamp_(0., 1.),
+                "appearance": generated_images["appearance"].clamp_(0., 1.),
+                "pose": generated_images["pose"].clamp_(0., 1.),
+            }
 
+
+"""
     def render_object_rotation(self, img_out_path, batch_size=15, n_steps=32):
         gen = self.generator
         bbox_generator = gen.bounding_box_generator
@@ -598,3 +575,4 @@ class Renderer(object):
             save_image(make_grid(
                 img_grid, nrow=img_n_steps, pad_value=1.), join(
                     out_folder, '%04d_%s.jpg' % (idx, name)))
+"""

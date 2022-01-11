@@ -13,7 +13,4 @@ _cache_*
 out/
 data/
 carla-dataset/
-out/carla-NeRF/vis/
-out/carla-NeRF-005/vis/
-out/carla-only-enc/vis/
-out/carla-only-enc-005/vis/
+eval_out/

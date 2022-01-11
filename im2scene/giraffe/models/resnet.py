@@ -399,8 +399,8 @@ class ResNet(nn.Module):
         rot6d = self.rot(x)
         rotmat = rot6d_to_rotmat(rot6d)
 
-        shape = self.dec_shape(x)))
-        appearance = self.dec_appearance(x)))
+        shape = self.dec_shape(x)
+        appearance = self.dec_appearance(x)
 
         return scale, trans, rotmat, shape, appearance   # (1, 3, 6)    -> 10
 
