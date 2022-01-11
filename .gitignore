@@ -12,3 +12,4 @@ _cache_*
 
 out/
 data/
+carla-dataset/

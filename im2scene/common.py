@@ -111,8 +111,13 @@ def transform_to_world(pixels, depth, camera_mat, world_mat, scale_mat=None,
     else:
         pixels[:, :3] = pixels[:, :3] * depth.permute(0, 2, 1)
 
-    # Transform pixels to world space
-    p_world = scale_mat @ world_mat @ camera_mat @ pixels
+    import pdb 
+
+    try:
+        # Transform pixels to world space
+        p_world = scale_mat @ world_mat @ camera_mat @ pixels
+    except:
+        pdb.set_trace()
 
     # Transform p_world back to 3D coordinates
     p_world = p_world[:, :3].permute(0, 2, 1)       # 다 동일한 값으로 origins 존재!

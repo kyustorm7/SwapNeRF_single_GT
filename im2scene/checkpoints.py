@@ -16,7 +16,7 @@ class CheckpointIO(object):
     '''
 
     def __init__(self, checkpoint_dir='./chkpts', **kwargs):
-        self.module_dict = kwargs
+        self.module_dict = kwargs       # model, optimizer_g, optimizer_d
         self.checkpoint_dir = checkpoint_dir
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
@@ -102,8 +102,12 @@ class CheckpointIO(object):
     '''
 
         for k, v in self.module_dict.items():
-            if k in state_dict:
-                v.load_state_dict(state_dict[k])
+            if k in state_dict:     # layer 하나하나 나옴 
+                if k == 'model':
+                    v.load_state_dict(state_dict[k], strict=False)            # state_dict of model -> (generator_test, generator 다 포함)
+                # else:
+                #     v.load_state_dict(state_dict[k])            # state_dict of model -> (generator_test, generator 다 포함)                    
+                # optimizer는 따로 필요 없음!
             else:
                 print('Warning: Could not find %s in checkpoint!' % k)
         scalars = {k: v for k, v in state_dict.items()

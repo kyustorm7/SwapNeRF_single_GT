@@ -8,7 +8,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as Rot
 from im2scene.camera import get_camera_mat, get_random_pose, get_camera_pose
 import pdb 
-from .resnet import resnet34
+from .resnet import resnet18
 
 class Generator(nn.Module):
     ''' GIRAFFE Generator Class.
@@ -61,10 +61,11 @@ class Generator(nn.Module):
         self.z_dim = z_dim
         self.z_dim_bg = z_dim_bg
         self.use_max_composition = use_max_composition
-        self.resnet = resnet34(pretrained=True, shape_dim=self.z_dim, app_dim=self.z_dim)
+        self.resnet = resnet18(pretrained=True, shape_dim=self.z_dim, app_dim=self.z_dim)
         self.camera_matrix = get_camera_mat(fov=fov).to(device) # intrinsic camera 
         self.range_v = range_v
         self.range_u = range_u
+        # self.camera_pred = nn.Linear()
 
         if decoder is not None:
             self.decoder = decoder.to(device)
@@ -84,7 +85,7 @@ class Generator(nn.Module):
         else:
             self.neural_renderer = None
 
-    def forward(self, img, pose, batch_size=32, latent_codes=None, camera_matrices=None,
+    def forward(self, img, batch_size=32, latent_codes=None, camera_matrices=None,
                 transformations=None, bg_rotation=None, mode="training", it=0,
                 return_alpha_map=False,
                 not_render_background=False,
@@ -93,99 +94,78 @@ class Generator(nn.Module):
         # edit mira start 
         # 랜덤하게 두개만 뽑자     
         img1 = img.to(self.device)
-        pose1 = pose
 
         batch_size = img1.shape[0]
-        # uv, shape, appearance = self.resnet(img)    # img 넣어주기 (Discriminator에서 input으로 받는거 그대로)
-        shape, appearance = self.resnet(img1)    # img 넣어주기 (Discriminator에서 input으로 받는거 그대로)
-        # 만약 gradient 저장이 문제라면 
+        # shape, appearance = torch.randn(batch_size, self.z_dim).to(self.device), torch.randn(batch_size, self.z_dim).to(self.device)
 
-        # mid = int(len(shape) / 2)
+        scale, trans, rot, shape, appearance = self.resnet(img1)
+        latent_codes = shape, appearance
+        shape_swap_latent = shape.flip(0), appearance
 
-        # if latent_codes is None:
-        #     latent_codes1 = shape[:mid].unsqueeze(1), appearance[:mid].unsqueeze(1)       # OK
-        #     latent_codes2 = shape[mid:].unsqueeze(1), appearance[mid:].unsqueeze(1)       # OK
-        latent_codes1 = shape.unsqueeze(1), appearance.unsqueeze(1)
+        pred_cam = scale, trans, rot
+
+        homo_ = torch.tensor([0, 0, 0, 1]).reshape(1, -1, 4).repeat(len(rot), 1, 1).to(self.device)
+        camera_mat = torch.cat([torch.cat([rot, trans.unsqueeze(-1)], dim=-1), homo_], dim=1)
+        scale_mat = torch.eye(4).unsqueeze(0).repeat(len(rot), 1, 1).to(self.device)
+        scale_mat[:, :3, :3] *= scale.reshape(-1, 1, 1)
+        camera_mat @= scale_mat
 
         if camera_matrices is None: 
-            # camera, world matrices 
-            # camera matrices 어떻게 고정하지? 
             random_u = torch.rand(batch_size)*(self.range_u[1] - self.range_u[0]) + self.range_u[0]
             random_v = torch.rand(batch_size)*(self.range_v[1] - self.range_v[0]) + self.range_v[0]
             # 정해진 batch size만큼 나옴 
 
             rand_camera_matrices = self.get_random_camera(random_u, random_v, batch_size)   # 사잇값이 가지런하게 나옴 
-
             intrinsic_mat = rand_camera_matrices[0]
             # u, v = uv[:, 0], uv[:, 1]
             # v = v/2
-
-            camera_matrices = tuple((intrinsic_mat, pose1))    # 앞부분 mat 
+            random_extrinsics = rand_camera_matrices[1]
+            camera_matrices = tuple((intrinsic_mat, camera_mat))    # 앞부분 mat 
             # new_cam_matrices = tuple((intrinsic_mat, pose2))   # 뒷부분 mat 
-            swap_camera_matrices = tuple((intrinsic_mat, pose1.flip(0)))    # 앞부분 mat 
-
+            swap_camera_matrices = tuple((intrinsic_mat, camera_mat.flip(0)))    # 앞부분 mat 
 
         else:
             print('oh noooo')
             pdb.set_trace()
 
+
         if transformations is None:
-            # transformations = pose
-            # swap_transformations = pose.flip(0)
             transformations = self.get_random_transformations(batch_size)     
 
-        # edit mira end 
+        rgb_v = self.volume_render_image(
+            latent_codes, camera_matrices, transformations, 
+            mode=mode, it=it, not_render_background=not_render_background,
+            only_render_background=only_render_background)
 
-        if return_alpha_map:
-            rgb_v, alpha_map = self.volume_render_image(
-                latent_codes1, camera_matrices, 
-                mode=mode, it=it, return_alpha_map=True,
-                not_render_background=not_render_background)
-            return alpha_map
+        rgb = self.neural_renderer(rgb_v)
+
+        # swap_rgb_v = self.volume_render_image(
+        #     latent_codes, swap_camera_matrices, transformations, 
+        #     mode=mode, it=it, not_render_background=not_render_background,
+        #     only_render_background=only_render_background)
+        # swap_rgb = self.neural_renderer(swap_rgb_v)
+
+
+
+        shape_swap_v = self.volume_render_image(
+            latent_codes, camera_matrices, transformations, 
+            mode=mode, it=it, not_render_background=not_render_background,
+            only_render_background=only_render_background)
+        shape_swap_rgb = self.neural_renderer(shape_swap_v)
+
+
+        rand_rgb_v = self.volume_render_image(
+            latent_codes, rand_camera_matrices, transformations, 
+            mode=mode, it=it, not_render_background=not_render_background,
+            only_render_background=only_render_background)
+        rand_rgb = self.neural_renderer(rand_rgb_v)
+
+        if mode is not 'val':
+            return rgb, pred_cam, latent_codes
         else:
-            rgb_v = self.volume_render_image(
-                latent_codes1, camera_matrices, transformations, 
-                mode=mode, it=it, not_render_background=not_render_background,
-                only_render_background=only_render_background)
-            # rgb_v2 = self.volume_render_image(
-            #     latent_codes2, new_cam_matrices, transformations, 
-            #     mode=mode, it=it, not_render_background=not_render_background,
-            #     only_render_background=only_render_background)
-            swap_rgb_v = self.volume_render_image(
-                latent_codes1, swap_camera_matrices, transformations, 
-                mode=mode, it=it, not_render_background=not_render_background,
-                only_render_background=only_render_background)
-
-            if self.neural_renderer is not None:
-                rgb = self.neural_renderer(rgb_v)
-                # rgb2 = self.neural_renderer(rgb_v2)
-                swap_rgb = self.neural_renderer(swap_rgb_v)
-                # rand_rgb = self.neural_renderer(rand_rgb_v)
-            else:
-                rgb = rgb_v
-                # rgb2 = rgb_v2
-                swap_rgb = swap_rgb_v
-                # rand_rgb = rand_rgb_v
-
-            if mode == 'val':
-                rand_rgb_v = self.volume_render_image(
-                    latent_codes1, rand_camera_matrices, transformations, 
-                    mode=mode, it=it, not_render_background=not_render_background,
-                    only_render_background=only_render_background)
-                rand_rgb = self.neural_renderer(rand_rgb_v)
-                return rgb, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1), self.radius[0].to(self.device)
-
-            if need_uv==True:
-                # return rgb, rgb2, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
-                # return rgb, rgb2, swap_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
-                return rgb, swap_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
+            return rgb, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1), self.radius[0].to(self.device), rand_camera_matrices[1], pred_cam
 
 
-                # return rgb, swap_rgb, rand_rgb, (uv, uv.flip(0), torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1))
-                # return rgb, swap_rgb, rand_rgb, torch.cat((rand_camera_matrices[1], pose, pose.flip(0)), dim=-1)
-
-            else:
-                return rgb, swap_rgb
 
     def get_n_boxes(self):
         if self.bounding_box_generator is not None:
@@ -355,7 +335,7 @@ class Generator(nn.Module):
         # p_box = (bb_R[:, box_idx] @ (p - bb_t[:, box_idx].unsqueeze(1)
         #                              ).permute(0, 2, 1)).permute(
         #     0, 2, 1) / bb_s[:, box_idx].unsqueeze(1) * scale_factor
-        # edit mira end
+        # edit mira end     # 그냥 t만 살리기 
         return p
 
     def get_evaluation_points_bg(self, pixels_world, camera_world, di,
@@ -492,6 +472,8 @@ class Generator(nn.Module):
         camera_world = origin_to_world(     
             n_points, camera_mat=camera_matrices[0],
             world_mat=camera_matrices[1])
+        
+
         ray_vector = pixels_world - camera_world
         # batch_size x n_points x n_steps
         di = depth_range[0] + \
@@ -505,7 +487,7 @@ class Generator(nn.Module):
         feat, sigma = [], []
         p_i, r_i = self.get_evaluation_points(      # points들을 transforation을 사용해서 가져옴
             pixels_world, camera_world, di, transformations)
-        z_shape_i, z_app_i = z_shape_obj[:, 0], z_app_obj[:, 0]
+        z_shape_i, z_app_i = z_shape_obj, z_app_obj
 
         # 여기 이하를 전부 가져오기!
         # 여기 self.decoder 부분을 가져오기!

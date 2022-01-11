@@ -96,5 +96,7 @@ class NeuralRenderer(nn.Module):
             rgb = self.conv_rgb(net)
 
         if self.final_actvn:
-            rgb = torch.sigmoid(rgb)
+            import pdb 
+            pdb.set_trace()
+            rgb = torch.sigmoid(rgb)    # 0~1 사이 지남
         return rgb
