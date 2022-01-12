@@ -564,7 +564,7 @@ class Generator(nn.Module):
         scale, trans, rot, shape, appearance = self.resnet(img1)
         latent_codes = shape, appearance
         shape_swap_latent = shape.flip(0), appearance
-        app_swap_latent = shape, appearance.flip(0  )
+        app_swap_latent = shape, appearance.flip(0)
 
         pred_cam = scale, trans, rot
 

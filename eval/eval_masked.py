@@ -22,9 +22,6 @@ sys.path.insert(0, parentdir)
 from im2scene import config
 from im2scene.checkpoints import CheckpointIO
 
-
-
-
 # Arguments
 parser = argparse.ArgumentParser(
     description='Render 3D ShapeNet images from trained SwapNerf Models'
@@ -61,64 +58,17 @@ else:
     print("WARNING: Not using cuda")
     device = torch.device("cpu")
 
-class EvalImageDataset(torch.utils.data.Dataset):
-    """
-    Get Images for Evaluation
-    """
-    def __init__(
-            self, path, image_size=(64, 64),
-    ):
-        super().__init__()
-        self.image_size = image_size
-        self.path = path
-        self.transform = transforms.Compose([
-            transforms.Resize(image_size),
-            transforms.ToTensor(),
-        ])
-
-        import time
-        t0 = time.time()
-        print("Start loading file addresses ...")
-
-        # image_filetype = ('*.png', '*.jpg')
-        self.images = []
-        valid_images = ["*.jpg", "*.gif", "*.png"]
-        if os.path.exists(self.path):
-            for valid_image_filename in valid_images:
-                print(self.path)
-                self.images.extend(glob.glob(os.path.join(self.path, valid_image_filename)))
-        else:
-            raise OSError("No Path Exists")
-
-        #random.shuffle(images)
-        load_t = time.time() - t0
-        print('Finished loading file addresses, time:', load_t)
-        print("Number of images found: %d" % len(self.images))
-    
-    def __len__(self):
-        return len(self.images)
-    
-    def __getitem__(self, idx):
-        image_path = self.images[idx]
-        
-        image = Image.open(image_path).convert("RGB")
-        image = self.transform(image)
-
-        data = {
-            'path': os.path.basename(image_path),
-            'image': image
-        }
-        return data
 
 model_dir = args.model.strip()          
 output_dir = args.output.strip()
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
-eval_dset = EvalImageDataset(args.datadir)
+eval_dataset = config.get_dataset(cfg)    
 eval_loader = torch.utils.data.DataLoader(
-    eval_dset, batch_size = 2, shuffle=True, num_workers = 8, pin_memory=True
+    eval_dataset, batch_size = 2, shuffle=True, num_workers = 8, pin_memory=True
 )
+
 
 
 # Load Trained Model

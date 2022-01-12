@@ -24,6 +24,7 @@ is_cuda = (torch.cuda.is_available() and not args.no_cuda)
 device = torch.device("cuda" if is_cuda else "cpu")
 
 out_dir = cfg['training']['out_dir']
+print(out_dir)
 out_dict_file = os.path.join(out_dir, 'fid_evaluation.npz')
 out_img_file = os.path.join(out_dir, 'fid_images.npy')
 out_vis_file = os.path.join(out_dir, 'fid_images.jpg')

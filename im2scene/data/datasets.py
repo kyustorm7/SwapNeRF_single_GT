@@ -10,6 +10,7 @@ import pickle
 import string
 import io
 import torch 
+from random import shuffle
 import random
 # fix for broken images
 from PIL import ImageFile
@@ -139,14 +140,15 @@ class ImagesDataset(data.Dataset):
         t0 = time.time()
         print('Start loading file addresses ...')
         images = glob.glob(dataset_folder)
-        random.shuffle(images)
+        shuffle(images)
         t = time.time() - t0
         print('done! time:', t)
         print("Number of images found: %d" % len(images))
 
         self.images = images
         self.length = len(images)
-        self.pose_path = 'carla-dataset/annos/new_annos.npz'
+        #self.pose_path = 'carla-dataset/annos/new_annos.npz'
+        self.pose_path = 'carla-dataset/annos/annos.npz'
         self.annos = np.load(self.pose_path)
         self.pose = self.annos['pose']
         self.shape = self.annos['shape']

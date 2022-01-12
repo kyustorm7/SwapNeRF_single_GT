@@ -10,7 +10,7 @@ out
 .nfs*
 _cache_*
 
-out/
+out/carla-NeRF/vis/
 data/
 carla-dataset/
 eval_out/

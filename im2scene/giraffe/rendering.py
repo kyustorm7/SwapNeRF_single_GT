@@ -38,11 +38,13 @@ class Renderer(object):
         with torch.no_grad():
             x_real = images.to(self.device)
             generated_images = self.generator.evaluate(x_real, batch_size=2, mode="val")
+            import pdb
+            pdb.set_trace()
             return {
-                "recon": generated_images["recon"].clamp_(0., 1.), 
-                "shape": generated_images["shape"].clamp_(0., 1.),
-                "appearance": generated_images["appearance"].clamp_(0., 1.),
-                "pose": generated_images["pose"].clamp_(0., 1.),
+                "recon": generated_images["recon"].detach(), #.clamp_(0., 1.), 
+                "shape": generated_images["shape"].detach(), #.clamp_(0., 1.),
+                "appearance": generated_images["appearance"], #.detach().clamp_(0., 1.),
+                "pose": generated_images["pose"].detach(), #.clamp_(0., 1.),
             }
 
 

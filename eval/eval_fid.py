@@ -12,7 +12,7 @@ from PIL import Image
 import glob
 import time
 import random
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
 import argparse
 
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -21,7 +21,8 @@ sys.path.insert(0, parentdir)
 
 from im2scene import config
 from im2scene.checkpoints import CheckpointIO
-
+from im2scene.eval import (
+    calculate_activation_statistics, calculate_frechet_distance)
 
 
 
@@ -114,6 +115,9 @@ model_dir = args.model.strip()
 output_dir = args.output.strip()
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
+out_dict_file = os.path.join(output_dir, 'fid_evaluation.npz')
+out_img_file = os.path.join(output_dir, 'fid_images.npy')
+out_vis_file = os.path.join(output_dir, 'fid_images.jpg')
 
 eval_dset = EvalImageDataset(args.datadir)
 eval_loader = torch.utils.data.DataLoader(
@@ -128,18 +132,30 @@ checkpoint_io = CheckpointIO(model_dir, model=model)
 checkpoint_io.load(cfg['test']['model_file'])
 print("Loaded Model from", cfg['test']['model_file'])
 
-# Generator
+# Generate
 renderer = config.get_renderer(model, cfg, device=device)
 model.eval()
+
+fid_file = cfg['data']['fid_file']
+assert(fid_file is not None)
+fid_dict = np.load(cfg['data']['fid_file'])
+
+batch_size = 2
+n_iter = 3
+n_images = batch_size * 4 * n_iter
+out_dict = {'n_images': n_images}
+
+img_fake = []
+t0 = time.time()
+iter_counter = 0
 
 with torch.no_grad():
     for batch in eval_loader:
         print("Generating Images for", batch["path"][0], "and", batch["path"][1])
         out = renderer.render_full_visualization(batch['image'])
-
+        img_fake.extend(out.values())
+        """
         for i in range(len(batch)):
-            import pdb
-            pdb.set_trace()
             recon_path = os.path.join(output_dir, "recon_" + batch["path"][i] )
             save_image(out["recon"][i].detach(), recon_path )
             shape_swap_path = os.path.join(output_dir, "shape_swapped_" + batch["path"][i] )
@@ -149,6 +165,38 @@ with torch.no_grad():
             pose_swap_path = os.path.join(output_dir, "pose_swapped_" + batch["path"][i] )
             save_image(out["pose"][i].detach(), pose_swap_path)
 
-        break
+        """
+        iter_counter += 1
+        if iter_counter <= n_iter:
+            break
+
+img_fake = torch.cat(img_fake, dim=0)[:n_images]
+img_fake.clamp_(0., 1.)
+n_images = img_fake.shape[0]
+
+t = time.time() - t0
+out_dict['time_full'] = t
+out_dict["time_image"] = t / n_images
+
+img_uint8 = (img_fake * 255).cpu().numpy().astype(np.uint8)
+np.save(out_img_file[:n_images], img_uint8)
+
+# use uint for eval to fairy compare
+img_fake = torch.from_numpy(img_uint8).float() / 255.
+mu, sigma = calculate_activation_statistics(img_fake)
+out_dict["m"] = mu
+out_dict["sigma"] = sigma
+
+# calculate FID score and save it to a dictionary
+fid_score = calculate_frechet_distance(mu, sigma, fid_dict['m'], fid_dict['s'])
+out_dict['fid'] = fid_score
+print("FID Score (%d images): %.6f" % (n_images, fid_score))
+np.savez(out_dict_file, **out_dict)
+
+# Save a grid of 16x16 images for visualization
+save_image(make_grid(img_fake, nrow=4, pad_value=1.), out_vis_file)
+
+
+
     
         
