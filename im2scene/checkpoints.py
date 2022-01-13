@@ -58,6 +58,7 @@ class CheckpointIO(object):
         Args:
             filename (str): name of saved module dictionary
         '''
+
         if is_url(filename):
             return self.load_url(filename)
         else:
@@ -72,7 +73,8 @@ class CheckpointIO(object):
 
         if not os.path.isabs(filename):
             filename = os.path.join(self.checkpoint_dir, filename)
-
+        print(os.getcwd())
+        print(filename)
         if os.path.exists(filename):
             print(filename)
             print('=> Loading checkpoint from local file...')
@@ -102,8 +104,13 @@ class CheckpointIO(object):
     '''
 
         for k, v in self.module_dict.items():
-            if k in state_dict:
-                v.load_state_dict(state_dict[k])
+            if k in state_dict:     # layer 하나하나 나옴 
+                if k == 'model':
+                    v.load_state_dict(state_dict[k], strict=False)            # state_dict of model -> (generator_test, generator 다 포함)
+                # else:
+                #     v.load_state_dict(state_dict[k])            # state_dict of model -> (generator_test, generator 다 포함)                    
+                # optimizer는 따로 필요 없음!
+                # v.load_state_dict(state_dict[k])
             else:
                 print('Warning: Could not find %s in checkpoint!' % k)
         scalars = {k: v for k, v in state_dict.items()

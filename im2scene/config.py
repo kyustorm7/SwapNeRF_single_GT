@@ -1,13 +1,11 @@
 import yaml
-from im2scene import data
-from im2scene import gan2d, giraffe
+from im2scene import data, giraffe
 import logging
 import os
 
 
 # method directory; for this project we only use giraffe
 method_dict = {
-    'gan2d': gan2d,
     'giraffe': giraffe,
 }
 
@@ -110,17 +108,20 @@ def get_trainer(model, optimizer, optimizer_d, cfg, device):
 
 
 # Renderer
-def get_renderer(model, cfg, device):
-    ''' Returns a render instance.
+def get_renderer(model, optimizer, optimizer_d, cfg, device):
+    ''' Returns a trainer instance.
 
     Args:
         model (nn.Module): the model which is used
+        optimizer (optimizer): pytorch optimizer
         cfg (dict): config dictionary
         device (device): pytorch device
     '''
     method = cfg['method']
-    renderer = method_dict[method].config.get_renderer(model, cfg, device)
-    return renderer
+    set_logger(cfg)
+    trainer = method_dict[method].config.get_renderer(
+        model, optimizer, optimizer_d, cfg, device)
+    return trainer
 
 
 def get_dataset(cfg, **kwargs):

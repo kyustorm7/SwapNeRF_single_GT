@@ -11,8 +11,8 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 import logging
 logger_py = logging.getLogger(__name__)
-np.random.seed(0)
-torch.manual_seed(0)
+np.random.seed(500)
+torch.manual_seed(500)
 
 
 # 세팅 나중에 잡기!
@@ -68,9 +68,9 @@ if not os.path.exists(out_dir):
 
 dataset = config.get_dataset(cfg)
 len_dset = len(dataset)
-train_len = len_dset * 0.99
+train_len = len_dset * 0.9
 
-train_dataset, val_dataset = torch.utils.data.random_split(dataset, [int(train_len)+1, int(len_dset-train_len)])
+train_dataset, val_dataset = torch.utils.data.random_split(dataset, [int(train_len), int(len_dset-train_len)])
 
 train_loader = torch.utils.data.DataLoader(
     train_dataset, batch_size=batch_size, num_workers=n_workers, shuffle=True,
@@ -197,23 +197,27 @@ while (True):
             checkpoint_io.save('model_%d.pt' % it, epoch_it=epoch_it, it=it,
                                loss_val_best=metric_val_best)
 
-        # # Run validation            <- validadtion 확인해보기!    # 일단 pass
-        # if validate_every > 0 and (it % validate_every) == 0 and (it > 0):
-        #     print("Performing evaluation step.")
-        #     eval_dict = trainer.evaluate()
-        #     metric_val = eval_dict[model_selection_metric]
-        #     logger_py.info('Validation metric (%s): %.4f'
-        #                    % (model_selection_metric, metric_val))
+        '''
+        # Run validation            <- validadtion 확인해보기!    # 일단 pass
+        if validate_every > 0 and (it % validate_every) == 0 and (it > 0):      # 여기서 validation까지도 전부 계산하기
+            print("Performing evaluation step.")
+            eval_dict = trainer.evaluate()
+            metric_val = eval_dict[model_selection_metric]
+            logger_py.info('Validation metric (%s): %.4f'
+                           % (model_selection_metric, metric_val))
 
-        #     for k, v in eval_dict.items():
-        #         logger.add_scalar('val/%s' % k, v, it)
+            for k, v in eval_dict.items():
+                logger.add_scalar('val/%s' % k, v, it)
 
-        #     if model_selection_sign * (metric_val - metric_val_best) > 0:
-        #         metric_val_best = metric_val
-        #         logger_py.info('New best model (loss %.4f)' % metric_val_best)
-        #         checkpoint_io.backup_model_best('model_best.pt')
-        #         checkpoint_io.save('model_best.pt', epoch_it=epoch_it, it=it,
-        #                            loss_val_best=metric_val_best)
+            # if model_selection_sign * (metric_val - metric_val_best) > 0:
+            #     metric_val_best = metric_val
+            #     logger_py.info('New best model (loss %.4f)' % metric_val_best)
+            #     checkpoint_io.backup_model_best('model_best.pt')
+            #     checkpoint_io.save('model_best.pt', epoch_it=epoch_it, it=it,
+            #                        loss_val_best=metric_val_best)
+        '''
+
+
 
         # Exit if necessary
         if exit_after > 0 and (time.time() - t0) >= exit_after:
