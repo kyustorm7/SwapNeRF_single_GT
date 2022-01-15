@@ -63,7 +63,13 @@ parser.add_argument('--no-cuda', action='store_true', help='Do not use cuda.')
 parser.add_argument('--exit-after', type=int, default=-1,
                     help='Checkpoint and exit after specified number of '
                          'seconds with exit code 2.')
-
+parser.add_argument(
+    '--mode',
+    '-M',
+    type=str,
+    default = "recon",
+    help = "Mode to Render recon|shape|appearance|pose|all"
+)
 
 args = parser.parse_args()
 cfg = config.load_config(args.config, 'configs/default.yaml')
@@ -71,6 +77,8 @@ is_cuda = (torch.cuda.is_available() and not args.no_cuda)
 device = torch.device("cuda" if is_cuda else "cpu")
 
 ## check render mode
+if args.mode not in ["recon", "shape", "appearance", "pose"]:
+    args.mode == "recon"
 
 
 
@@ -182,7 +190,11 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
 
-
+out_dict_file = os.path.join(output_dir, 'fid_evaluation_' + args.mode + '_.npz')
+out_img_file = os.path.join(output_dir, 'fid_images_' + args.mode + '_.npy')
+orig_vis_file = os.path.join(output_dir, 'original_images.jpg')
+out_vis_file = os.path.join(output_dir, 'fid_images_' + args.mode + '_.jpg')
+out_txt_file = os.path.join(output_dir,'fid_values_' + args.mode + '_.txt') 
 
 orig_image = []
 recon_image = []
@@ -208,53 +220,43 @@ for batch in train_loader:
         app_swap_image.append(appearance_rgb[i])
         pose_swap_image.append(swap_rgb[i])
 
+if args.mode == "shape":
+    img_fake = torch.stack(shape_swap_image, dim=0)
+elif args.mode == "appearance":
+    img_fake = torch.stack(app_swap_image, dim=0)
+elif args.mode == "pose":
+    img_fake = torch.stack(pose_swap_image, dim=0)
+else:
+    img_fake = torch.stack(recon_image, dim=0)
 
-orig_vis_file = os.path.join(output_dir, 'original_images.jpg')
 batch = torch.stack(orig_image, dim = 0)
+
+img_fake.clamp_(0., 1.)
+n_images = img_fake.shape[0]
+
+t = time.time() - t0
+out_dict = {'n_images': n_images}
+out_dict['time_full'] = t
+out_dict["time_image"] = t / n_images
+
+img_uint8 = (img_fake * 255).cpu().numpy().astype(np.uint8)
+np.save(out_img_file, img_uint8)
+
+# use unit for eval to fairy compare
+img_fake = torch.from_numpy(img_uint8).float() / 255.
+mu, sigma = calculate_activation_statistics(img_fake)
+out_dict["m"] = mu
+out_dict["sigma"] = sigma
+
+# calculate FID score and save it to a dictionary
+fid_score = calculate_frechet_distance(mu, sigma, fid_dict['m'], fid_dict['s'])
+out_dict['fid'] = fid_score
+print("FID Score (%d images): %.6f" % (n_images, fid_score))
+np.savez(out_dict_file, **out_dict)
+with open('readme.txt', 'w') as f:
+    for line in lines:
+        f.write("FID Score (%d images): %.6f" % (n_images, fid_score))
+
+# Save a grid of 16x16 images for visualization
 save_image(make_grid(batch[:128], nrow=8, pad_value=1.), orig_vis_file)
-
-
-for mode in ["recon", "shape", "appearance", "pose"]:
-
-    out_dict_file = os.path.join(output_dir, 'fid_evaluation_' + mode + '_.npz')
-    out_img_file = os.path.join(output_dir, 'fid_images_' + mode + '_.npy')
-    out_vis_file = os.path.join(output_dir, 'fid_images_' + mode + '_.jpg')
-    out_txt_file = os.path.join(output_dir,'fid_values_' + mode + '_.txt') 
-
-    if mode == "shape":
-        img_fake = torch.stack(shape_swap_image, dim=0)
-    elif mode == "appearance":
-        img_fake = torch.stack(app_swap_image, dim=0)
-    elif mode == "pose":
-        img_fake = torch.stack(pose_swap_image, dim=0)
-    else:
-        img_fake = torch.stack(recon_image, dim=0)
-
-    img_fake.clamp_(0., 1.)
-    n_images = img_fake.shape[0]
-
-    t = time.time() - t0
-    out_dict = {'n_images': n_images}
-    out_dict['time_full'] = t
-    out_dict["time_image"] = t / n_images
-
-    img_uint8 = (img_fake * 255).cpu().numpy().astype(np.uint8)
-    np.save(out_img_file, img_uint8)
-
-    # use unit for eval to fairy compare
-    img_fake = torch.from_numpy(img_uint8).float() / 255.
-    mu, sigma = calculate_activation_statistics(img_fake)
-    out_dict["m"] = mu
-    out_dict["sigma"] = sigma
-
-    # calculate FID score and save it to a dictionary
-    fid_score = calculate_frechet_distance(mu, sigma, fid_dict['m'], fid_dict['s'])
-    out_dict['fid'] = fid_score
-    print(mode,"FID Score (%d images): %.6f" % (n_images, fid_score))
-    np.savez(out_dict_file, **out_dict)
-    with open('readme.txt', 'w') as f:
-        f.write(mode + " FID Score (%d images): %.6f" % (n_images, fid_score))
-
-    # Save a grid of 16x16 images for visualization
-
-    save_image(make_grid(img_fake[:128], nrow=8, pad_value=1.), out_vis_file)
+save_image(make_grid(img_fake[:128], nrow=8, pad_value=1.), out_vis_file)

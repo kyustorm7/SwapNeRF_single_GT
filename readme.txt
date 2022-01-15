@@ -1,0 +1,1 @@
+recon FID Score (8992 images): 94.630772
