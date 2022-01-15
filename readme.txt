@@ -1,1 +1,1 @@
-recon FID Score (8992 images): 94.630772
+pose FID Score (8992 images): 104.815744
