@@ -202,19 +202,21 @@ for batch in train_loader:
     batch, image_fake, shape_rgb, appearance_rgb, swap_rgb = batch["image"].detach(), image_fake.detach(), shape_rgb.detach(), appearance_rgb.detach(), swap_rgb.detach()
 
     for i in range(image_fake.shape[0]):
-        orig_image.append(batch[i])
-        recon_image.append(image_fake[i])
-        shape_swap_image.append(shape_rgb[i])
-        app_swap_image.append(appearance_rgb[i])
-        pose_swap_image.append(swap_rgb[i])
+        orig_image.append(batch[i].detach())
+        recon_image.append(image_fake[i].detach())
+        shape_swap_image.append(shape_rgb[i].detach())
+        app_swap_image.append(appearance_rgb[i].detach())
+        pose_swap_image.append(swap_rgb[i].detach())
 
 
 orig_vis_file = os.path.join(output_dir, 'original_images.jpg')
 batch = torch.stack(orig_image, dim = 0)
+summary = torch.stack(orig_image[:batch_size], dim= 0)
 save_image(make_grid(batch[:128], nrow=8, pad_value=1.), orig_vis_file)
 
 
 for mode in ["recon", "shape", "appearance", "pose"]:
+    print("mode:", mode)
 
     out_dict_file = os.path.join(output_dir, 'fid_evaluation_' + mode + '_.npz')
     out_img_file = os.path.join(output_dir, 'fid_images_' + mode + '_.npy')
@@ -229,6 +231,8 @@ for mode in ["recon", "shape", "appearance", "pose"]:
         img_fake = torch.stack(pose_swap_image, dim=0)
     else:
         img_fake = torch.stack(recon_image, dim=0)
+    
+    
 
     img_fake.clamp_(0., 1.)
     n_images = img_fake.shape[0]
@@ -243,6 +247,8 @@ for mode in ["recon", "shape", "appearance", "pose"]:
 
     # use unit for eval to fairy compare
     img_fake = torch.from_numpy(img_uint8).float() / 255.
+    summary = torch.cat((summary, img_fake[:batch_size]), dim=0)
+
     mu, sigma = calculate_activation_statistics(img_fake)
     out_dict["m"] = mu
     out_dict["sigma"] = sigma
@@ -258,3 +264,8 @@ for mode in ["recon", "shape", "appearance", "pose"]:
     # Save a grid of 16x16 images for visualization
 
     save_image(make_grid(img_fake[:128], nrow=8, pad_value=1.), out_vis_file)
+
+
+# Make Summary Grid
+summary_vis_file = os.path.join(output_dir, 'fid_images_' + "summary" + '_.jpg')
+save_image(make_grid(summary, nrow=batch_size, pad_value=1.), summary_vis_file)
