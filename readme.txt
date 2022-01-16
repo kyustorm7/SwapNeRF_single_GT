@@ -1,1 +1,0 @@
-pose FID Score (8992 images): 105.077746
